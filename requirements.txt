@@ -1,0 +1,6 @@
+django
+djangorestframework
+mysqlclient
+ollama
+requests
+django-import-export

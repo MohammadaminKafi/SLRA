@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.core.exceptions import PermissionDenied
 from django.utils.html import format_html
-from import_export.admin import ImportExportModelAdmin  # Example if using django-import-export
+from import_export.admin import ImportExportModelAdmin
 
 from .models import (
     SystematicReview, ResearchQuestion, HypothesisKeyword,

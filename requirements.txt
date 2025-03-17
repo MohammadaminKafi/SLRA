@@ -4,3 +4,4 @@ mysqlclient
 ollama
 requests
 django-import-export
+together

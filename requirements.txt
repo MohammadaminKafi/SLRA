@@ -5,3 +5,5 @@ ollama
 requests
 django-import-export
 together
+scholarly
+beautifulsoup4

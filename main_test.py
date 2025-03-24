@@ -1,47 +1,57 @@
-import json
+from scholarly import scholarly
 import requests
+from bs4 import BeautifulSoup
 
-# Ollama API endpoint
-OLLAMA_API_URL = "http://localhost:11434/api/generate"
-
-def get_deepseek_response(prompt):
-    # Prepare the request payload
-    payload = {
-        "model": "deepseek-r1:8b",  # Replace with the exact model name if different
-        "prompt": prompt + "\nGenerate 10 research questions about this topic.",
-        "stream": True
+def get_paper_details(paper):
+   
+    title = paper.get('bib', {}).get('title', 'No title available')
+    authors = paper.get('bib', {}).get('author', 'No authors available')
+    url = paper.get('pub_url', 'No URL available')
+    citations = paper.get('num_citations', 0)
+    
+    abstract = paper.get("bib", {}).get("abstract", "No abstract available"),
+    if url != 'No URL available':
+        try:
+            response = requests.get(url)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            abstract_tag = soup.find('div', class_='abstract')
+            if abstract_tag:
+                abstract = abstract_tag.get_text(strip=True)
+        except Exception as e:
+            print(f"Error fetching abstract: {e}")
+    
+    return {
+        'title': title,
+        'authors': authors,
+        'url': url,
+        'citations': citations,
+        'abstract': abstract
     }
-    
-    # Send the request to Ollama
-    response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
-    
-    # Collect the final response
-    final_response = ""
-    for chunk in response.iter_lines():
-        if chunk:
-            chunk_data = json.loads(chunk.decode("utf-8"))
-            # Append the response part to the final response
-            final_response += chunk_data.get("response", "")
-    
-    # Extract only the research questions
-    questions = []
-    for line in final_response.split("\n"):
-        if line.strip().startswith(("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "10.")):
-            questions.append(line.strip())
-    
-    return questions
 
-def main():
-    # Get input string from the user
-    user_input = input("Enter your topic: ")
+def search_google_scholar(query, max_results=5):
+    """
+    Searches Google Scholar for papers related to the query and returns their details.
+    """
+    search_query = scholarly.search_pubs(query)
+    results = []
     
-    # Get DeepSeek's response
-    research_questions = get_deepseek_response(user_input)
+    for i, paper in enumerate(search_query):
+        if i >= max_results:
+            break
+        paper_details = get_paper_details(paper)
+        results.append(paper_details)
     
-    # Print DeepSeek's response
-    print("\nResearch Questions:")
-    for i, question in enumerate(research_questions, 1):
-        print(f"{question}")
+    return results
 
 if __name__ == "__main__":
-    main()
+    question = input("Enter your research question: ")
+    
+    papers = search_google_scholar(question)
+    
+    for i, paper in enumerate(papers):
+        print(f"\nPaper {i+1}:")
+        print(f"Title: {paper['title']}")
+        print(f"Authors: {paper['authors']}")
+        print(f"URL: {paper['url']}")
+        print(f"Citations: {paper['citations']}")
+        print(f"Abstract: {paper['abstract']}")

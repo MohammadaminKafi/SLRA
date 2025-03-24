@@ -69,8 +69,6 @@ def get_llm_response(llm_model: LLMModel, user_prompt: str, stream: bool = False
 
     # Decide which function to call based on the provider
     if 'ollama' in provider_name:
-        # The "version" might be appended to "model_name" if needed
-        # or you can do something like: full_model_name = f"{model_name}:{llm_model.version}"
         full_model_name = f"{model_name}"
         if llm_model.version:
             full_model_name += f":{llm_model.version}"

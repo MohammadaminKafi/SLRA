@@ -7,7 +7,12 @@ from .models import (
     SystematicReview, ResearchQuestion, HypothesisKeyword,
     PrimaryStudy, SearchQuery, DigitalLibrarySearch,
     SearchResult, RelevancyEvaluation, LLMProvider,
-    LLMModel, LLMQueryLog
+    LLMModel, LLMQueryLog,  # existing models
+
+    # new models
+    DigitalLibrary,
+    VenueQualitySource,
+    Venue
 )
 
 # -------------------------------------------------------------------------
@@ -38,7 +43,7 @@ class SearchResultInline(admin.TabularInline):
     """
     model = SearchResult
     extra = 1
-    # Example read-only field to preserve data integrity:
+    # Example read-only fields to preserve data integrity:
     readonly_fields = ('url', 'title', 'authors', 'abstract')
 
 
@@ -75,8 +80,8 @@ class YearFilter(admin.SimpleListFilter):
     parameter_name = 'publication_year'
 
     def lookups(self, request, model_admin):
-        # Example: Show only a few distinct years from the dataset
-        years = queryset_years = model_admin.model.objects.values_list('publication_year', flat=True).distinct()
+        # Example: Show only distinct years from the dataset
+        years = model_admin.model.objects.values_list('publication_year', flat=True).distinct()
         return [(year, str(year)) for year in years if year]
 
     def queryset(self, request, queryset):
@@ -116,7 +121,7 @@ class SystematicReviewAdmin(admin.ModelAdmin):
     search_fields = ('name', 'problem_statement')
     inlines = [ResearchQuestionInline, HypothesisKeywordInline]
 
-    # Custom action examples:
+    # Custom actions
     actions = ['perform_snowballing']
 
     def perform_snowballing(self, request, queryset):
@@ -135,9 +140,10 @@ class PrimaryStudyAdmin(admin.ModelAdmin):
     """
     Admin panel for PrimaryStudy with custom filters and search capabilities.
     """
-    list_display = ('title', 'publication_year', 'relevancy_level', 'citations')
-    list_filter = (RelevancyFilter, YearFilter)
-    search_fields = ('title', 'abstract', 'keywords')
+    # We include 'venue' in list_display so the admin can control that too
+    list_display = ('title', 'venue', 'publication_year', 'relevancy_level', 'citations')
+    list_filter = (RelevancyFilter, YearFilter, 'venue')
+    search_fields = ('title', 'abstract', 'keywords', 'venue__name')
     readonly_fields = ('citations',)  # Example read-only field
 
     # Bulk actions for efficiency
@@ -166,7 +172,6 @@ class SearchQueryAdmin(admin.ModelAdmin):
     """
     list_display = ('query_string', 'systematic_review', 'created_at')
     search_fields = ('query_string',)
-    # Potential custom actions:
     actions = ['re_run_library_search']
 
     def re_run_library_search(self, request, queryset):
@@ -180,13 +185,24 @@ class SearchQueryAdmin(admin.ModelAdmin):
         self.message_user(request, f"Re-ran library search for {queryset.count()} queries.")
 
 
+@admin.register(DigitalLibrary)
+class DigitalLibraryAdmin(admin.ModelAdmin):
+    """
+    Manage the Digital Libraries (Google Scholar, Arxiv, IEEE, etc.).
+    """
+    list_display = ('name', 'usage_method', 'base_url')
+    search_fields = ('name', 'base_url', 'usage_method')
+    # You might add more advanced filtering or read-only fields if desired.
+
+
 @admin.register(DigitalLibrarySearch)
 class DigitalLibrarySearchAdmin(admin.ModelAdmin):
     """
     Admin for DigitalLibrarySearch entries.
     Inline management of SearchResult objects.
     """
-    list_display = ('search_query', 'library_name', 'search_date', 'total_results_found')
+    list_display = ('search_query', 'library', 'search_date', 'total_results_found')
+    search_fields = ('search_query__query_string', 'library__name')
     inlines = [SearchResultInline]
 
 
@@ -197,6 +213,7 @@ class SearchResultAdmin(admin.ModelAdmin):
     Read-only fields help maintain data integrity.
     """
     list_display = ('title', 'url', 'library_search')
+    search_fields = ('title', 'authors', 'abstract', 'url')
     readonly_fields = ('title', 'url', 'authors', 'abstract', 'library_search')
 
 
@@ -209,7 +226,25 @@ class RelevancyEvaluationAdmin(admin.ModelAdmin):
     list_filter = ('relevancy', 'evaluator')
     readonly_fields = ('evaluated_at',)
     search_fields = ('notes', 'primary_study__title', 'evaluator')
-    # If using django-simple-history, you'd see historical changes in the admin.
+
+
+@admin.register(VenueQualitySource)
+class VenueQualitySourceAdmin(admin.ModelAdmin):
+    """
+    Manage sources of venue-quality data, such as SJR or Scopus.
+    """
+    list_display = ('name', 'base_url')
+    search_fields = ('name', 'base_url', 'usage_instructions')
+
+
+@admin.register(Venue)
+class VenueAdmin(admin.ModelAdmin):
+    """
+    Manage the publication venue (journal, conference, etc.).
+    """
+    list_display = ('name', 'venue_type')
+    list_filter = ('venue_type',)
+    search_fields = ('name',)
 
 
 @admin.register(LLMProvider)
@@ -237,16 +272,12 @@ class LLMModelAdmin(admin.ModelAdmin):
     """
     list_display = ('model_name', 'version', 'provider', 'usage_method')
     search_fields = ('model_name', 'version', 'usage_method')
-    # Potentially read-only for credentials to normal staff
-    # or override has_change_permission similarly to LLMProvider.
 
     def has_change_permission(self, request, obj=None):
         """
         Restrict editing credentials to superusers only (sample logic).
         """
         if not request.user.is_superuser:
-            # Possibly allow partial editing but not credentials
-            # or disallow entirely:
             return False
         return super().has_change_permission(request, obj)
 
@@ -284,4 +315,3 @@ class LLMQueryLogAdmin(ImportExportModelAdmin):
         count = queryset.count()
         queryset.delete()
         self.message_user(request, f"Deleted {count} LLM query log(s).")
-
